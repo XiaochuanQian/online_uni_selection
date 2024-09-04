@@ -161,6 +161,10 @@ def home_page():
         st.error(f"Selections are only allowed between {start_time} and {end_time} UTC.")
         return
 
+    # Class selection
+    class_options = [f"11.{i}" for i in range(1, 8)]
+    selected_class = st.selectbox("Select your class", class_options)
+
     num_names = st.number_input("Number of names to submit (2-4)", min_value=2, max_value=4, value=2)
     names = [st.text_input(f"Name {i + 1}") for i in range(num_names)]
 
@@ -178,9 +182,11 @@ def home_page():
         elif are_names_used(names):
             st.error("One or more of these names have already been used.")
         else:
-            success, message = add_selections(names, university)
+            # Modify names to include class information
+            names_with_class = [f"{name} ({selected_class})" for name in names]
+            success, message = add_selections(names_with_class, university)
             if success:
-                st.success(f"Thank you! The selection of {university} has been recorded for {', '.join(names)}.")
+                st.success(f"Thank you! The selection of {university} has been recorded for {', '.join(names_with_class)}.")
             else:
                 st.error(message)
 
