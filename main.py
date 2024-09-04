@@ -2,29 +2,75 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime, timezone
-import filelock
 import time
+import filelock
+import io
+import json
 
 # List of 50 universities
 universities = [
-    "Harvard University", "Stanford University", "MIT", "University of California, Berkeley",
-    "University of Oxford", "University of Cambridge", "California Institute of Technology",
-    "Columbia University", "University of Chicago", "Yale University",
-    # Add 40 more universities here to complete the list of 50
+    "Barnard College", "Boston University", "Carleton College", "Carnegie Mellon University",
+    "Case Western Reserve University", "Chinese University of Hong Kong", "Claremont McKenna College",
+    "Cornell University", "Duke University", "Emory University", "Georgia Institute of Technology",
+    "Hong Kong University of Science and Technology", "Imperial College London", "Johns Hopkins University",
+    "London School of Economics and Political Science", "Middlebury College", "National University of Singapore",
+    "Nanyang Technological University", "New York University", "Northeastern University", "Northwestern University",
+    "Rice University", "University College London", "University of California, Berkeley",
+    "University of California, Davis",
+    "University of California, Irvine", "University of California, Los Angeles", "University of California, San Diego",
+    "University of California, Santa Barbara", "University of Cambridge", "University of Chicago",
+    "University of Florida",
+    "University of Hong Kong", "University of Illinois Urbana-Champaign", "University of Michigan, Ann Arbor",
+    "University of North Carolina at Chapel Hill", "University of North Dakota", "University of Notre Dame",
+    "University of Oxford", "University of Rochester", "University of Southern California", "University of Toronto",
+    "University of Virginia", "University of Washington", "University of Waterloo", "University of Wisconsin, Madison",
+    "Vanderbilt University", "Washington University in St. Louis", "Wesleyan University",
 ]
 
 # File to store selections
 EXCEL_FILE = "university_selections.xlsx"
 LOCK_FILE = "university_selections.lock"
+CONFIG_FILE = "config.json"
 
-# Set the start and end times for selections (UTC)
-START_TIME = datetime(2024, 9, 1, 0, 0, 0, tzinfo=timezone.utc)
-END_TIME = datetime(2024, 9, 20, 23, 59, 59, tzinfo=timezone.utc)
+# Default start and end times for selections (UTC)
+DEFAULT_START_TIME = datetime(2024, 9, 3, 0, 0, 0, tzinfo=timezone.utc)
+DEFAULT_END_TIME = datetime(2024, 9, 20, 23, 59, 59, tzinfo=timezone.utc)
 
 # Refresh interval in seconds
-REFRESH_INTERVAL = 2
+REFRESH_INTERVAL = 3
+
+# Admin credentials
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "123"
 
 
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as file:
+            config = json.load(file)
+            start_time = datetime.fromisoformat(config.get("start_time"))
+            end_time = datetime.fromisoformat(config.get("end_time"))
+            return start_time, end_time
+    else:
+        return DEFAULT_START_TIME, DEFAULT_END_TIME
+
+
+def save_config(start_time, end_time):
+    config = {
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat()
+    }
+    with open(CONFIG_FILE, "w") as file:
+        json.dump(config, file)
+
+
+# Cache the start and end times
+@st.cache_data(ttl=REFRESH_INTERVAL)
+def get_selection_times():
+    return load_config()
+
+
+# Cache the dataframe
 @st.cache_data(ttl=REFRESH_INTERVAL)
 def get_dataframe():
     with filelock.FileLock(LOCK_FILE):
@@ -81,16 +127,38 @@ def get_available_universities():
     return df[(df["Slots"] > 0) & (df["Selected"] == False)]["University"].tolist()
 
 
-def is_selection_time():
+def is_selection_time(start_time, end_time):
     now = datetime.now(timezone.utc)
-    return START_TIME <= now <= END_TIME
+    return start_time <= now <= end_time
 
 
 def main():
+    st.sidebar.title("Navigation")
+    page = st.sidebar.radio("Go to", ["Home", "Admin"])
+
+    # Check if the admin parameter is present in the URL
+    try:
+        query_params = st.query_params["admin"]
+        is_admin = query_params.lower() == "true"
+    except:
+        is_admin = False
+
+
+    if page == "Home":
+        home_page()
+    elif page == "Admin" and is_admin:
+        admin_page()
+    else:
+        st.error("Unauthorized access")
+
+
+def home_page():
     st.title("University Selection")
 
-    if not is_selection_time():
-        st.error(f"Selections are only allowed between {START_TIME} and {END_TIME} UTC.")
+    start_time, end_time = get_selection_times()
+
+    if not is_selection_time(start_time, end_time):
+        st.error(f"Selections are only allowed between {start_time} and {end_time} UTC.")
         return
 
     num_names = st.number_input("Number of names to submit (2-4)", min_value=2, max_value=4, value=2)
@@ -116,32 +184,6 @@ def main():
             else:
                 st.error(message)
 
-    st.markdown(
-        """
-        <style>
-       div[data-testid="stStatusWidget"] div button {
-            display: none;
-            }
-        
-        
-            </style>
-        
-    """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        """
-        <style>
-       div[data-testid="stBaseButton-headerNoPadding"] div div {
-            display: none;
-            }
-        
-        
-            </style>
-        
-    """,
-        unsafe_allow_html=True,
-    )
     # Display current selections
     st.subheader("Current Selections")
     df = get_dataframe()
@@ -157,6 +199,74 @@ def main():
 
     # Rerun the app
     st.rerun()
+
+
+def admin_page():
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+
+    if st.session_state.logged_in:
+        admin_dashboard()
+    else:
+        st.title("Admin Login")
+
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+                st.session_state.logged_in = True
+                st.rerun()
+            else:
+                st.error("Invalid credentials")
+
+
+def admin_dashboard():
+    st.title("Admin Dashboard")
+
+    # Load current selection times
+    start_time, end_time = get_selection_times()
+
+    # Input fields for new start and end times
+    new_start_date = st.date_input("New Start Date", start_time.date())
+    new_start_time = st.time_input("New Start Time", start_time.time())
+    new_end_date = st.date_input("New End Date", end_time.date())
+    new_end_time = st.time_input("New End Time", end_time.time())
+
+    # Combine date and time inputs into datetime objects
+    new_start_datetime = datetime.combine(new_start_date, new_start_time, tzinfo=timezone.utc)
+    new_end_datetime = datetime.combine(new_end_date, new_end_time, tzinfo=timezone.utc)
+
+    # Update selection times if the new start time is before the new end time
+    if st.button("Update Times"):
+        if new_start_datetime < new_end_datetime:
+            save_config(new_start_datetime, new_end_datetime)
+            get_selection_times.clear()
+            st.success("Selection times updated successfully!")
+        else:
+            st.error("Start time must be before end time")
+
+    st.subheader("Download Final Excel Worksheet")
+    df = get_dataframe()
+
+    # Write the DataFrame to a BytesIO buffer
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False)
+    buffer.seek(0)
+
+    # Download button for the final Excel worksheet
+    st.download_button(
+        label="Download Excel Worksheet",
+        data=buffer,
+        file_name="university_selections_final.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    # Logout button
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
 
 
 if __name__ == "__main__":
