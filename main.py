@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import time
 import filelock
 import io
@@ -9,22 +9,55 @@ import json
 
 # List of 50 universities
 universities = [
-    "Barnard College", "Boston University", "Carleton College", "Carnegie Mellon University",
-    "Case Western Reserve University", "Chinese University of Hong Kong", "Claremont McKenna College",
-    "Cornell University", "Duke University", "Emory University", "Georgia Institute of Technology",
-    "Hong Kong University of Science and Technology", "Imperial College London", "Johns Hopkins University",
-    "London School of Economics and Political Science", "Middlebury College", "National University of Singapore",
-    "Nanyang Technological University", "New York University", "Northeastern University", "Northwestern University",
-    "Rice University", "University College London", "University of California, Berkeley",
+    "Duke University",
+    "Johns Hopkins University",
+    "Northwestern University",
+    "Cornell University",
+    "University of Chicago",
+    "University of California, Berkeley",
+    "University of California, Los Angeles",
+    "Rice University",
+    "Vanderbilt University",
+    "University of Notre Dame",
+    "University of Michigan, Ann Arbor",
+    "University of North Carolina at Chapel Hill",
+    "Carnegie Mellon University",
+    "Emory University",
+    "University of Virginia",
+    "Washington University in St. Louis",
     "University of California, Davis",
-    "University of California, Irvine", "University of California, Los Angeles", "University of California, San Diego",
-    "University of California, Santa Barbara", "University of Cambridge", "University of Chicago",
+    "University of California, San Diego",
     "University of Florida",
-    "University of Hong Kong", "University of Illinois Urbana-Champaign", "University of Michigan, Ann Arbor",
-    "University of North Carolina at Chapel Hill", "University of Notre Dame",
-    "University of Oxford", "University of Rochester", "University of Southern California", "University of Toronto",
-    "University of Virginia", "University of Washington", "University of Waterloo", "University of Wisconsin, Madison",
-    "Vanderbilt University", "Washington University in St. Louis", "Wesleyan University",
+    "University of Southern California",
+    "Georgia Institute of Technology",
+    "University of California, Irvine",
+    "New York University",
+    "University of California, Santa Barbara",
+    "University of Illinois Urbana-Champaign",
+    "University of Wisconsin, Madison",
+    "Tufts University",
+    "University of Washington",
+    "Boston University",
+    "University of Rochester",
+    "Case Western Reserve University",
+    "Northeastern University",
+    "Carleton College",
+    "Barnard College",
+    "Claremont McKenna College",
+    "Middlebury College",
+    "Wesleyan University",
+    "University of Oxford",
+    "University of Cambridge",
+    "London School of Economics and Political Science",
+    "Imperial College London",
+    "University College London",
+    "University of Toronto",
+    "University of Waterloo",
+    "University of Hong Kong",
+    "Chinese University of Hong Kong",
+    "Hong Kong University of Science and Technology",
+    "National University of Singapore",
+    "Nanyang Technological University"
 ]
 
 # File to store selections
@@ -32,9 +65,12 @@ EXCEL_FILE = "university_selections.xlsx"
 LOCK_FILE = "university_selections.lock"
 CONFIG_FILE = "config.json"
 
-# Default start and end times for selections (UTC)
-DEFAULT_START_TIME = datetime(2024, 9, 3, 0, 0, 0, tzinfo=timezone.utc)
-DEFAULT_END_TIME = datetime(2024, 9, 20, 23, 59, 59, tzinfo=timezone.utc)
+# Define UTC+8 timezone
+UTC_PLUS_8 = timezone(timedelta(hours=8))
+
+# Default start and end times for selections (UTC+8)
+DEFAULT_START_TIME = datetime(2024, 9, 3, 0, 0, 0, tzinfo=UTC_PLUS_8)
+DEFAULT_END_TIME = datetime(2024, 9, 20, 23, 59, 59, tzinfo=UTC_PLUS_8)
 
 # Refresh interval in seconds
 REFRESH_INTERVAL = 3
@@ -43,17 +79,15 @@ REFRESH_INTERVAL = 3
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "123123"
 
-
 def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as file:
             config = json.load(file)
-            start_time = datetime.fromisoformat(config.get("start_time"))
-            end_time = datetime.fromisoformat(config.get("end_time"))
+            start_time = datetime.fromisoformat(config.get("start_time")).replace(tzinfo=UTC_PLUS_8)
+            end_time = datetime.fromisoformat(config.get("end_time")).replace(tzinfo=UTC_PLUS_8)
             return start_time, end_time
     else:
         return DEFAULT_START_TIME, DEFAULT_END_TIME
-
 
 def save_config(start_time, end_time):
     config = {
@@ -63,12 +97,10 @@ def save_config(start_time, end_time):
     with open(CONFIG_FILE, "w") as file:
         json.dump(config, file)
 
-
 # Cache the start and end times
 @st.cache_data(ttl=REFRESH_INTERVAL)
 def get_selection_times():
     return load_config()
-
 
 # Cache the dataframe
 @st.cache_data(ttl=REFRESH_INTERVAL)
@@ -93,7 +125,6 @@ def get_dataframe():
                 df.to_excel(EXCEL_FILE, index=False)
     return df
 
-
 def add_selections(names, university):
     with filelock.FileLock(LOCK_FILE):
         df = pd.read_excel(EXCEL_FILE)
@@ -114,23 +145,19 @@ def add_selections(names, university):
         get_dataframe.clear()
         return True, "Selection successful"
 
-
 def are_names_used(names):
     df = get_dataframe()
     all_names = [name for names_str in df["Names"] if pd.notna(names_str) for name in names_str.split(", ") if name]
     return any(name in all_names for name in names)
-
 
 @st.cache_data(ttl=REFRESH_INTERVAL)
 def get_available_universities():
     df = get_dataframe()
     return df[(df["Slots"] > 0) & (df["Selected"] == False)]["University"].tolist()
 
-
 def is_selection_time(start_time, end_time):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC_PLUS_8)
     return start_time <= now <= end_time
-
 
 def main():
     st.sidebar.title("Navigation")
@@ -143,7 +170,6 @@ def main():
     except:
         is_admin = False
 
-
     if page == "Home":
         home_page()
     elif page == "Admin" and is_admin:
@@ -151,14 +177,13 @@ def main():
     else:
         st.error("Unauthorized access")
 
-
 def home_page():
     st.title("University Selection")
 
     start_time, end_time = get_selection_times()
 
     if not is_selection_time(start_time, end_time):
-        st.error(f"Selections are only allowed between {start_time} and {end_time} UTC.")
+        st.error(f"Selections are only allowed between {start_time.strftime('%Y-%m-%d %H:%M:%S')} and {end_time.strftime('%Y-%m-%d %H:%M:%S')} (UTC+8).")
         return
 
     # Class selection
@@ -206,7 +231,6 @@ def home_page():
     # Rerun the app
     st.rerun()
 
-
 def admin_page():
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
@@ -226,7 +250,6 @@ def admin_page():
             else:
                 st.error("Invalid credentials")
 
-
 def admin_dashboard():
     st.title("Admin Dashboard")
 
@@ -240,8 +263,8 @@ def admin_dashboard():
     new_end_time = st.time_input("New End Time", end_time.time())
 
     # Combine date and time inputs into datetime objects
-    new_start_datetime = datetime.combine(new_start_date, new_start_time, tzinfo=timezone.utc)
-    new_end_datetime = datetime.combine(new_end_date, new_end_time, tzinfo=timezone.utc)
+    new_start_datetime = datetime.combine(new_start_date, new_start_time, tzinfo=UTC_PLUS_8)
+    new_end_datetime = datetime.combine(new_end_date, new_end_time, tzinfo=UTC_PLUS_8)
 
     # Update selection times if the new start time is before the new end time
     if st.button("Update Times"):
@@ -303,7 +326,6 @@ def admin_dashboard():
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
-
 
 def clear_all_submissions():
     # Clear the Excel file
