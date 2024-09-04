@@ -269,11 +269,56 @@ def admin_dashboard():
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+    # Clear submissions section
+    st.subheader("Clear All Submissions")
+
+    if 'clear_state' not in st.session_state:
+        st.session_state.clear_state = 'initial'
+
+    if st.session_state.clear_state == 'initial':
+        if st.button("Clear All Submissions"):
+            st.session_state.clear_state = 'confirm'
+            st.rerun()
+
+    elif st.session_state.clear_state == 'confirm':
+        st.warning("Are you sure you want to clear all submissions? This action cannot be undone.")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Yes, I'm sure"):
+                clear_all_submissions()
+                st.session_state.clear_state = 'cleared'
+                st.rerun()
+        with col2:
+            if st.button("Cancel"):
+                st.session_state.clear_state = 'initial'
+                st.rerun()
+
+    elif st.session_state.clear_state == 'cleared':
+        st.success("All submissions have been cleared.")
+        if st.button("OK"):
+            st.session_state.clear_state = 'initial'
+            st.rerun()
+
     # Logout button
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
 
+
+def clear_all_submissions():
+    # Clear the Excel file
+    df = pd.DataFrame(columns=["University", "Names", "Slots", "Selected"])
+    for uni in universities:
+        new_row = pd.DataFrame({"University": [uni], "Names": [""], "Slots": [4], "Selected": [False]})
+        df = pd.concat([df, new_row], ignore_index=True)
+    df.to_excel(EXCEL_FILE, index=False)
+
+    # Delete the lock file if it exists
+    if os.path.exists(LOCK_FILE):
+        os.remove(LOCK_FILE)
+
+    # Clear the cache
+    get_dataframe.clear()
 
 if __name__ == "__main__":
     main()
