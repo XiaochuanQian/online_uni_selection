@@ -21,7 +21,7 @@ universities = [
     "University of California, Santa Barbara", "University of Cambridge", "University of Chicago",
     "University of Florida",
     "University of Hong Kong", "University of Illinois Urbana-Champaign", "University of Michigan, Ann Arbor",
-    "University of North Carolina at Chapel Hill", "University of North Dakota", "University of Notre Dame",
+    "University of North Carolina at Chapel Hill", "University of Notre Dame",
     "University of Oxford", "University of Rochester", "University of Southern California", "University of Toronto",
     "University of Virginia", "University of Washington", "University of Waterloo", "University of Wisconsin, Madison",
     "Vanderbilt University", "Washington University in St. Louis", "Wesleyan University",
@@ -77,7 +77,7 @@ def get_dataframe():
         if not os.path.exists(EXCEL_FILE):
             df = pd.DataFrame(columns=["University", "Names", "Slots", "Selected"])
             for uni in universities:
-                new_row = pd.DataFrame({"University": [uni], "Names": [""], "Slots": [4], "Selected": [False]})
+                new_row = pd.DataFrame({"University": [uni], "Names": [""], "Slots": [1], "Selected": [False]})
                 df = pd.concat([df, new_row], ignore_index=True)
             df.to_excel(EXCEL_FILE, index=False)
         else:
@@ -88,7 +88,7 @@ def get_dataframe():
                 existing_unis = df["University"].tolist()
                 for uni in universities:
                     if uni not in existing_unis:
-                        new_row = pd.DataFrame({"University": [uni], "Names": [""], "Slots": [4], "Selected": [False]})
+                        new_row = pd.DataFrame({"University": [uni], "Names": [""], "Slots": [1], "Selected": [False]})
                         df = pd.concat([df, new_row], ignore_index=True)
                 df.to_excel(EXCEL_FILE, index=False)
     return df
@@ -165,7 +165,7 @@ def home_page():
     class_options = [f"11.{i}" for i in range(1, 8)]
     selected_class = st.selectbox("Select your class", class_options)
 
-    num_names = st.number_input("Number of names to submit (2-4)", min_value=2, max_value=4, value=2)
+    num_names = st.number_input("Number of names to submit (omit this entry)", min_value=1, max_value=1, value=1)
     names = [st.text_input(f"Name {i + 1}") for i in range(num_names)]
 
     available_universities = get_available_universities()
@@ -309,7 +309,7 @@ def clear_all_submissions():
     # Clear the Excel file
     df = pd.DataFrame(columns=["University", "Names", "Slots", "Selected"])
     for uni in universities:
-        new_row = pd.DataFrame({"University": [uni], "Names": [""], "Slots": [4], "Selected": [False]})
+        new_row = pd.DataFrame({"University": [uni], "Names": [""], "Slots": [1], "Selected": [False]})
         df = pd.concat([df, new_row], ignore_index=True)
     df.to_excel(EXCEL_FILE, index=False)
 
