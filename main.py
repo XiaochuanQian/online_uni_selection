@@ -41,7 +41,7 @@ REFRESH_INTERVAL = 3
 
 # Admin credentials
 ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "123"
+ADMIN_PASSWORD = "123123"
 
 
 def load_config():
