@@ -107,25 +107,28 @@ def get_selection_times():
 def get_dataframe():
     with filelock.FileLock(LOCK_FILE):
         if not os.path.exists(EXCEL_FILE):
-            df = pd.DataFrame(columns=["University", "Names", "Slots", "Selected"])
+            df = pd.DataFrame(columns=["University", "Names", "Class", "Slots", "Selected"])
             for uni in universities:
-                new_row = pd.DataFrame({"University": [uni], "Names": [""], "Slots": [1], "Selected": [False]})
+                new_row = pd.DataFrame({"University": [uni], "Names": [""], "Class": [""], "Slots": [1], "Selected": [False]})
                 df = pd.concat([df, new_row], ignore_index=True)
             df.to_excel(EXCEL_FILE, index=False)
         else:
             df = pd.read_excel(EXCEL_FILE)
             if "Selected" not in df.columns:
                 df["Selected"] = False
+            if "Class" not in df.columns:
+                df["Class"] = ""
             if len(df) < len(universities):
                 existing_unis = df["University"].tolist()
                 for uni in universities:
                     if uni not in existing_unis:
-                        new_row = pd.DataFrame({"University": [uni], "Names": [""], "Slots": [1], "Selected": [False]})
+                        new_row = pd.DataFrame({"University": [uni], "Names": [""], "Class": [""], "Slots": [1], "Selected": [False]})
                         df = pd.concat([df, new_row], ignore_index=True)
                 df.to_excel(EXCEL_FILE, index=False)
     return df
 
-def add_selections(names, university):
+
+def add_selections(names, classes, university):
     with filelock.FileLock(LOCK_FILE):
         df = pd.read_excel(EXCEL_FILE)
         uni_row = df[df["University"] == university].index[0]
@@ -136,8 +139,14 @@ def add_selections(names, university):
 
         current_names = str(df.at[uni_row, "Names"]).split(", ") if pd.notna(df.at[uni_row, "Names"]) and df.at[
             uni_row, "Names"] != "" else []
+        current_classes = str(df.at[uni_row, "Class"]).split(", ") if pd.notna(df.at[uni_row, "Class"]) and df.at[
+            uni_row, "Class"] != "" else []
+
         current_names.extend(names)
+        current_classes.extend(classes)
+
         df.at[uni_row, "Names"] = ", ".join(current_names)
+        df.at[uni_row, "Class"] = ", ".join(current_classes)
         df.at[uni_row, "Slots"] = max(0, df.at[uni_row, "Slots"] - len(names))
         df.at[uni_row, "Selected"] = True
         df.to_excel(EXCEL_FILE, index=False)
@@ -190,7 +199,7 @@ def home_page():
     class_options = [f"11.{i}" for i in range(1, 8)]
     selected_class = st.selectbox("Select your class", class_options)
 
-    num_names = st.number_input("Number of names to submit (omit this entry)", min_value=1, max_value=1, value=1)
+    num_names = st.number_input("Number of names to submit", min_value=1, max_value=1, value=1)
     names = [st.text_input(f"Name {i + 1}") for i in range(num_names)]
 
     available_universities = get_available_universities()
@@ -207,18 +216,17 @@ def home_page():
         elif are_names_used(names):
             st.error("One or more of these names have already been used.")
         else:
-            # Modify names to include class information
-            names_with_class = [f"{name} ({selected_class})" for name in names]
-            success, message = add_selections(names_with_class, university)
+            classes = [selected_class] * len(names)
+            success, message = add_selections(names, classes, university)
             if success:
-                st.success(f"Thank you! The selection of {university} has been recorded for {', '.join(names_with_class)}.")
+                st.success(f"Thank you! The selection of {university} has been recorded for {', '.join(names)} from class {selected_class}.")
             else:
                 st.error(message)
 
     # Display current selections
     st.subheader("Current Selections")
     df = get_dataframe()
-    st.dataframe(df[["University", "Names", "Slots", "Selected"]])
+    st.dataframe(df[["University", "Names", "Class", "Slots", "Selected"]])
 
     # Add a placeholder for the refresh countdown
     placeholder = st.empty()
@@ -329,9 +337,9 @@ def admin_dashboard():
 
 def clear_all_submissions():
     # Clear the Excel file
-    df = pd.DataFrame(columns=["University", "Names", "Slots", "Selected"])
+    df = pd.DataFrame(columns=["University", "Names", "Class", "Slots", "Selected"])
     for uni in universities:
-        new_row = pd.DataFrame({"University": [uni], "Names": [""], "Slots": [1], "Selected": [False]})
+        new_row = pd.DataFrame({"University": [uni], "Names": [""], "Class": [""], "Slots": [1], "Selected": [False]})
         df = pd.concat([df, new_row], ignore_index=True)
     df.to_excel(EXCEL_FILE, index=False)
 
