@@ -79,6 +79,7 @@ REFRESH_INTERVAL = 3
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "123123"
 
+
 def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as file:
@@ -89,6 +90,7 @@ def load_config():
     else:
         return DEFAULT_START_TIME, DEFAULT_END_TIME
 
+
 def save_config(start_time, end_time):
     config = {
         "start_time": start_time.isoformat(),
@@ -97,10 +99,12 @@ def save_config(start_time, end_time):
     with open(CONFIG_FILE, "w") as file:
         json.dump(config, file)
 
+
 # Cache the start and end times
 @st.cache_data(ttl=REFRESH_INTERVAL)
 def get_selection_times():
     return load_config()
+
 
 # Cache the dataframe
 @st.cache_data(ttl=REFRESH_INTERVAL)
@@ -109,7 +113,8 @@ def get_dataframe():
         if not os.path.exists(EXCEL_FILE):
             df = pd.DataFrame(columns=["University", "Names", "Class", "Slots", "Selected"])
             for uni in universities:
-                new_row = pd.DataFrame({"University": [uni], "Names": [""], "Class": [""], "Slots": [1], "Selected": [False]})
+                new_row = pd.DataFrame(
+                    {"University": [uni], "Names": [""], "Class": [""], "Slots": [1], "Selected": [False]})
                 df = pd.concat([df, new_row], ignore_index=True)
             df.to_excel(EXCEL_FILE, index=False)
         else:
@@ -122,15 +127,18 @@ def get_dataframe():
                 existing_unis = df["University"].tolist()
                 for uni in universities:
                     if uni not in existing_unis:
-                        new_row = pd.DataFrame({"University": [uni], "Names": [""], "Class": [""], "Slots": [1], "Selected": [False]})
+                        new_row = pd.DataFrame(
+                            {"University": [uni], "Names": [""], "Class": [""], "Slots": [1], "Selected": [False]})
                         df = pd.concat([df, new_row], ignore_index=True)
-                df.to_excel(EXCEL_FILE, index=False)
+            df.to_excel(EXCEL_FILE, index=False)
     return df
 
 
 def add_selections(names, classes, university):
     with filelock.FileLock(LOCK_FILE):
         df = pd.read_excel(EXCEL_FILE)
+        if "Class" not in df.columns:
+            df["Class"] = ""
         uni_row = df[df["University"] == university].index[0]
         if df.at[uni_row, "Selected"]:
             return False, "This university has already been selected. Please choose another."
@@ -145,8 +153,8 @@ def add_selections(names, classes, university):
         current_names.extend(names)
         current_classes.extend(classes)
 
-        df.at[uni_row, "Names"] = ", ".join(current_names)
-        df.at[uni_row, "Class"] = ", ".join(current_classes)
+        df.at[uni_row, "Names"] = ", ".join(filter(None, current_names))
+        df.at[uni_row, "Class"] = ", ".join(filter(None, current_classes))
         df.at[uni_row, "Slots"] = max(0, df.at[uni_row, "Slots"] - len(names))
         df.at[uni_row, "Selected"] = True
         df.to_excel(EXCEL_FILE, index=False)
@@ -159,14 +167,17 @@ def are_names_used(names):
     all_names = [name for names_str in df["Names"] if pd.notna(names_str) for name in names_str.split(", ") if name]
     return any(name in all_names for name in names)
 
+
 @st.cache_data(ttl=REFRESH_INTERVAL)
 def get_available_universities():
     df = get_dataframe()
     return df[(df["Slots"] > 0) & (df["Selected"] == False)]["University"].tolist()
 
+
 def is_selection_time(start_time, end_time):
     now = datetime.now(UTC_PLUS_8)
     return start_time <= now <= end_time
+
 
 def main():
     st.sidebar.title("Navigation")
@@ -186,20 +197,22 @@ def main():
     else:
         st.error("Unauthorized access")
 
+
 def home_page():
     st.title("University Selection")
 
     start_time, end_time = get_selection_times()
 
     if not is_selection_time(start_time, end_time):
-        st.error(f"Selections are only allowed between {start_time.strftime('%Y-%m-%d %H:%M:%S')} and {end_time.strftime('%Y-%m-%d %H:%M:%S')} (UTC+8).")
+        st.error(
+            f"Selections are only allowed between {start_time.strftime('%Y-%m-%d %H:%M:%S')} and {end_time.strftime('%Y-%m-%d %H:%M:%S')} (UTC+8).")
         return
 
     # Class selection
     class_options = [f"11.{i}" for i in range(1, 8)]
     selected_class = st.selectbox("Select your class", class_options)
 
-    num_names = st.number_input("Number of names to submit", min_value=1, max_value=1, value=1)
+    num_names = st.number_input("Number of names to submit (omit this entry)", min_value=1, max_value=1, value=1)
     names = [st.text_input(f"Name {i + 1}") for i in range(num_names)]
 
     available_universities = get_available_universities()
@@ -219,7 +232,8 @@ def home_page():
             classes = [selected_class] * len(names)
             success, message = add_selections(names, classes, university)
             if success:
-                st.success(f"Thank you! The selection of {university} has been recorded for {', '.join(names)} from class {selected_class}.")
+                st.success(
+                    f"Thank you! The selection of {university} has been recorded for {', '.join(names)} from class {selected_class}.")
             else:
                 st.error(message)
 
@@ -239,6 +253,7 @@ def home_page():
     # Rerun the app
     st.rerun()
 
+
 def admin_page():
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
@@ -257,6 +272,7 @@ def admin_page():
                 st.rerun()
             else:
                 st.error("Invalid credentials")
+
 
 def admin_dashboard():
     st.title("Admin Dashboard")
@@ -335,6 +351,7 @@ def admin_dashboard():
         st.session_state.logged_in = False
         st.rerun()
 
+
 def clear_all_submissions():
     # Clear the Excel file
     df = pd.DataFrame(columns=["University", "Names", "Class", "Slots", "Selected"])
@@ -349,6 +366,7 @@ def clear_all_submissions():
 
     # Clear the cache
     get_dataframe.clear()
+
 
 if __name__ == "__main__":
     main()
